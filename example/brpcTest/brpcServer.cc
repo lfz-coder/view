@@ -31,7 +31,7 @@ class CalServiceImpl : public cal::CalService {
 };
 
 int main() {
-    auto server = view::ServerFactory::Create(9000, new CalServiceImpl());
+    auto server = viewRpc::ServerFactory::Create(9000, new CalServiceImpl());
     server->RunUntilAskedToQuit();
     return 0;
 }

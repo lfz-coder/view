@@ -6,7 +6,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-namespace view {
+namespace viewRpc {
 using ChannelPtr = std::shared_ptr<brpc::Channel>;
 // 单服务集合
 class Channels {

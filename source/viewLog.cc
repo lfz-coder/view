@@ -12,8 +12,8 @@
 // 引入spdlog旋转文件输出sink（按大小切割）
 #include <spdlog/sinks/rotating_file_sink.h>
 
-// 自定义命名空间 view，避免全局命名冲突
-namespace view {
+// 自定义命名空间 viewLog，避免全局命名冲突
+namespace viewLog {
     // 定义全局日志器智能指针
     // 整个项目都可以通过 view::g_logger 使用日志功能
     std::shared_ptr<spdlog::logger> g_logger;

@@ -5,7 +5,7 @@
 
 int main() {
     // 1. 实例化服务节点管理对象
-    view::RpcManager rpcManager;
+    viewRpc::RpcManager rpcManager;
     rpcManager.CareService("user");
     rpcManager.AddNode("user", "192.168.10.129:9000");
     
@@ -25,7 +25,7 @@ int main() {
     req->set_num2(20);
     
     // 4. 构造 closure，捕获智能指针（按值移动）
-    auto closure = view::ClosureFactory::Create([=](){
+    auto closure = viewRpc::ClosureFactory::Create([=](){
         std::unique_ptr<brpc::Controller> cntl_guard(cntl);
         std::unique_ptr<cal::AddReq> req_guard(req);
         std::unique_ptr<cal::AddRsp> rsp_guard(rsp);

@@ -1,4 +1,4 @@
-#include <util.h>
+#include <viewUtil.h>
 #include <iostream>
 
 std::optional<std::string> serializeTest() {
@@ -8,7 +8,7 @@ std::optional<std::string> serializeTest() {
     json["score"].append(90.9);
     json["score"].append(83.1);
     json["score"].append(95.2);
-    auto strOpt = view::JsonUtil::serialize(json);
+    auto strOpt = viewUtil::JsonUtil::serialize(json);
     if (strOpt) {
         std::cout << "序列化结果: \n" << strOpt.value() << std::endl;
         return strOpt.value();
@@ -19,7 +19,7 @@ std::optional<std::string> serializeTest() {
 }
 
 void deserializeTest(const std::string& str) {
-    auto jsonOpt = view::JsonUtil::deserialize(str);
+    auto jsonOpt = viewUtil::JsonUtil::deserialize(str);
     if (jsonOpt) {
         std::cout << "反序列化结果: \n" << jsonOpt.value() << std::endl;
         std::cout << "姓名: " << jsonOpt.value()["name"] << std::endl;
