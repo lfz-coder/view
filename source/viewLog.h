@@ -23,7 +23,7 @@ namespace viewLog {
      */
     struct log_settings {
         bool async = false;                 ///< 是否启用异步日志
-        int level = 1;                      ///< 日志输出等级: 1=debug, 2=info, 3=warn, 4=error, 6=off
+        int level = 1;                      ///< 日志输出等级: 1=debug, 2=info, 3=warn, 4=error, 5=critical, 6=off
         std::string format = "[%H:%M:%S][%-7l]: %v"; ///< 日志输出格式
         std::string path = "stdout";        ///< 日志输出目标， "stdout" 表示控制台，否则为文件路径
     };
@@ -38,7 +38,10 @@ namespace viewLog {
     void init_logger(const log_settings& settings = log_settings());
 
     // 封装日志输出宏，在每条日志前添加 [文件名:行号] 前缀
-    #define FMT_PREFIX std::string("[{}:{}]: ")
+    #ifndef VIEWLOG_FMT_PREFIX
+    #define VIEWLOG_FMT_PREFIX std::string("[{}:{}]: ")
+    #endif
+    #define FMT_PREFIX VIEWLOG_FMT_PREFIX  // 兼容旧代码
     #define DEBUG(fmt, ...)   g_logger->debug(FMT_PREFIX + fmt, __FILE__, __LINE__, ##__VA_ARGS__)
     #define INFO(fmt, ...)    g_logger->info(FMT_PREFIX + fmt, __FILE__, __LINE__, ##__VA_ARGS__)
     #define WARN(fmt, ...)    g_logger->warn(FMT_PREFIX + fmt, __FILE__, __LINE__, ##__VA_ARGS__)

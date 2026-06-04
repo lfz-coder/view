@@ -11,7 +11,7 @@ C++ 后端基础设施组件库，封装常用中间件为统一风格的功能�
 | viewAVTrans | [source/viewAVTrans.h](source/viewAVTrans.h) | FFmpeg HLS 视频转码 | ✅ 完成 |
 | viewEtcd | [source/viewEtcd.h](source/viewEtcd.h) | etcd 服务注册与发现 | ✅ 完成 |
 | viewRpc | [source/viewRpc.h](source/viewRpc.h) | brpc RPC 客户端/服务端封装 | ✅ 完成 |
-| viewMQ | [source/viewMQ.h](source/viewMQ.h) | AMQP/RabbitMQ 消息队列 | ⚠️ 待实现 |
+| viewMQ | [source/viewMQ.h](source/viewMQ.h) | AMQP/RabbitMQ 消息队列 | ✅ 完成 |
 
 ## 快速开始
 

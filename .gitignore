@@ -4,15 +4,19 @@ bin-release/
 [Oo]bj/
 [Bb]in/
 
-# Other files and folders
+# IDE
 .settings/
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# Compiled binary executables (example directories)
+example/*/brpcClient
+example/*/brpcServer
+example/*/hlsTest
+example/*/jsonTest
+example/*/logTest
+example/*/discovery
+example/*/registry
+example/*/*.o
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# Protobuf generated files
+*.pb.h
+*.pb.cc

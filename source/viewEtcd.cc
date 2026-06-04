@@ -13,11 +13,20 @@
 
 namespace viewEtcd {
 
+// etcd 连接重试配置
+static const int MAX_CONNECT_RETRIES = 30;        // 最大连接重试次数
+static const int MAX_RE_REGISTER_RETRIES = 5;     // 最大重新注册次数
+static const int CONNECT_RETRY_INTERVAL_MS = 1000; // 连接重试间隔（毫秒）
+
 void WaitForConnection(etcd::Client& client) {
-    while(!client.head().get().is_ok()) {
-        viewLog::INFO("Waiting for connection to Etcd server");
-        std::this_thread::sleep_for(std::chrono::seconds(1)); // 等待 1 秒后重试
+    for (int retry = 0; retry < MAX_CONNECT_RETRIES; ++retry) {
+        if (client.head().get().is_ok()) {
+            return;
+        }
+        viewLog::INFO("等待 etcd 连接... ({}/{})", retry + 1, MAX_CONNECT_RETRIES);
+        std::this_thread::sleep_for(std::chrono::milliseconds(CONNECT_RETRY_INTERVAL_MS));
     }
+    viewLog::ERROR("etcd 连接超时，已重试 {} 次", MAX_CONNECT_RETRIES);
 }
 
 // *********************************************************************************************** //
@@ -75,35 +84,37 @@ bool ServiceRegister::RegisterService() {
         _keepAlive.reset();    // 释放对象
     }
 
-    // ===================== 7. 保活回调：不能直接重入调用，必须用异步 =====================
-    // ✅ 使用 weak_ptr 避免循环引用和悬空指针
+    // ===================== 7. 保活回调：保活失败时进行有限的重新注册 =====================
     std::weak_ptr<ServiceRegister> weak_self = shared_from_this();
-    auto handler = [weak_self](const std::exception_ptr& ex) {
-        // 尝试获取 shared_ptr，如果对象已销毁则直接返回
+    // shared_ptr 共享重试计数，跨回调调用保持状态
+    auto retryCount = std::make_shared<int>(0);
+
+    auto handler = [weak_self, retryCount](const std::exception_ptr& ex) {
         auto self = weak_self.lock();
         if (!self) {
             viewLog::WARN("ServiceRegister 对象已销毁，停止保活重试");
             return;
         }
-        
+
         try {
             if (ex) std::rethrow_exception(ex);
         } catch (const std::exception& e) {
             viewLog::ERROR("保活失败: {}", e.what());
         }
 
-        // 使用异步重新注册
-        (void)std::async(std::launch::async, [weak_self]() {
-            // 延迟1秒避免疯狂重试
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            
-            auto self = weak_self.lock();
-            if (self) {
-                self->RegisterService();
-            } else {
-                viewLog::WARN("ServiceRegister 对象已销毁，取消重试");
-            }
-        });
+        // 限制重新注册次数，避免无限递归
+        if (*retryCount >= MAX_RE_REGISTER_RETRIES) {
+            viewLog::ERROR("重新注册已达最大重试次数 {}，停止重试", MAX_RE_REGISTER_RETRIES);
+            return;
+        }
+        ++(*retryCount);
+
+        viewLog::INFO("将在 1 秒后尝试重新注册 ({}/{})",
+                      *retryCount, MAX_RE_REGISTER_RETRIES);
+
+        // 延迟重试，移除 std::async 避免 future 析构阻塞
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        self->RegisterService();
     };
 
     // ===================== 8. 创建新保活 =====================

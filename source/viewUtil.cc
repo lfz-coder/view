@@ -56,8 +56,11 @@ namespace viewUtil {
         }
         ifs.seekg(0, std::ios::beg); // 将文件指针移动回文件开头
         content.resize(fileSize); // 调整字符串大小以容纳文件内容
-        ifs.read(&content[0], fileSize); // 从文件中读取内容到字符串
-        ifs.close(); // 关闭文件流
+        if (!ifs.read(&content[0], fileSize)) {
+            viewLog::ERROR("FileUtil::Read read failed: {}", path);
+            content.clear();
+            return false;
+        }
 
         return true;
     }

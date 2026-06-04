@@ -16,31 +16,34 @@ int main() {
         return -1;
     }
     
-    // 3. 使用智能指针管理资源
-    auto cntl = new brpc::Controller();
-    auto req = new cal::AddReq();
-    auto rsp = new cal::AddRsp();
-    
+    // 3. 用 unique_ptr 管理资源，先取裸指针供 brpc 使用
+    auto cntl = std::make_unique<brpc::Controller>();
+    auto req  = std::make_unique<cal::AddReq>();
+    auto rsp  = std::make_unique<cal::AddRsp>();
+
     req->set_num1(10);
     req->set_num2(20);
-    
-    // 4. 构造 closure，捕获智能指针（按值移动）
-    auto closure = viewRpc::ClosureFactory::Create([=](){
-        std::unique_ptr<brpc::Controller> cntl_guard(cntl);
-        std::unique_ptr<cal::AddReq> req_guard(req);
-        std::unique_ptr<cal::AddRsp> rsp_guard(rsp);
-        if (cntl_guard->Failed() == true) {
-            std::cout << "rpc请求失败: " << cntl_guard->ErrorText() << std::endl;
-            return ;
-        }
-        std::cout << rsp_guard->result() << std::endl;
-    });
-    
+
+    // brpc API 使用裸指针
+    brpc::Controller* cntl_raw = cntl.get();
+    cal::AddReq*      req_raw  = req.get();
+    cal::AddRsp*      rsp_raw  = rsp.get();
+
+    // 4. 构造 closure，移动 unique_ptr 移交生命周期管理
+    auto closure = viewRpc::ClosureFactory::Create(
+        [cntl = std::move(cntl), req = std::move(req), rsp = std::move(rsp)]() {
+            if (cntl->Failed()) {
+                std::cout << "rpc请求失败: " << cntl->ErrorText() << std::endl;
+                return;
+            }
+            std::cout << rsp->result() << std::endl;
+        });
+
     // 5. 发起 RPC 调用
     cal::CalService_Stub stub(channel.get());
-    stub.Add(cntl, req, rsp, closure);
+    stub.Add(cntl_raw, req_raw, rsp_raw, closure);
     std::cout << "====================================" << std::endl;
-    
+
     // 6. 等待异步调用完成
     getchar();
     

@@ -79,12 +79,13 @@ namespace viewLog {
             // 设置日志输出级别
             // ==============================================
             switch (settings.level) {
-                case 1: g_logger->set_level(spdlog::level::debug); break;   // 调试级别
-                case 2: g_logger->set_level(spdlog::level::info);  break;   // 普通信息
+                case 1: g_logger->set_level(spdlog::level::debug); break;   // 调试
+                case 2: g_logger->set_level(spdlog::level::info);  break;   // 信息
                 case 3: g_logger->set_level(spdlog::level::warn);  break;   // 警告
                 case 4: g_logger->set_level(spdlog::level::err);   break;   // 错误
-                case 6: g_logger->set_level(spdlog::level::off);   break;   // 关闭日志
-                default: g_logger->set_level(spdlog::level::info); break;   // 默认 info
+                case 5: g_logger->set_level(spdlog::level::critical); break; // 严重
+                case 6: g_logger->set_level(spdlog::level::off);   break;   // 关闭
+                default: g_logger->set_level(spdlog::level::info); break;
             }
 
             // ==============================================

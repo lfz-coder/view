@@ -50,7 +50,7 @@ namespace viewRpc {
             return nullptr;
         }
         ChannelPtr channel = _channel_vec[_index];
-        _index = (++_index) % _channel_vec.size();
+        _index = (_index + 1) % _channel_vec.size();
         return channel;
     }
 

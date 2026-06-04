@@ -54,19 +54,19 @@ struct DeclareSetting {
      * @brief 获取死信交换机名称
      * @return 格式为 "dlx.{exchangeName}" 的字符串
      */
-    std::string DlxExchange();
+    std::string DlxExchange() const;
 
     /**
      * @brief 获取死信队列名称
      * @return 格式为 "dlx.{queueName}" 的字符串
      */
-    std::string DlxQueue();
+    std::string DlxQueue() const;
 
     /**
      * @brief 获取死信队列绑定键
      * @return 格式为 "dlx.{bindingKey}" 的字符串
      */
-    std::string DlxBindingKey();
+    std::string DlxBindingKey() const;
 };
 
 extern AMQP::ExchangeType Exchange_type(const std::string& type);
@@ -93,26 +93,56 @@ private:
     std::thread _async_thread; // 异步处理事件循环
 };
 
-class PublishClient : public MQClient {
-public:    
-    using ptr = std::shared_ptr<PublishClient>;
-    PublishClient(MQClient::ptr mqClient, const DeclareSetting& declareSetting);
-    void Publish(const std::string& message); // 发布消息到预设的交换机
+/**
+ * @class PublishClient
+ * @brief 消息发布客户端 —— 组合 MQClient，预设交换机和声明配置，简化发布操作
+ */
+class PublishClient {
+public:
+    using Ptr = std::shared_ptr<PublishClient>;
+
+    /**
+     * @brief 构造函数
+     * @param mqClient 已初始化的 MQClient 实例
+     * @param declareSetting 交换机/队列声明配置
+     */
+    PublishClient(MQClient::Ptr mqClient, const DeclareSetting& declareSetting);
+
+    /**
+     * @brief 发布消息到预设的交换机
+     * @param message 消息体
+     */
+    void Publish(const std::string& message);
+
 private:
-    // 发布客户端特有的成员函数和数据
-    MQClient::ptr _mqClient; // 内部使用 MQClient 进行消息发布
-    DeclareSetting _declareSetting; // 发布客户端的声明配置
+    MQClient::Ptr _mqClient;          ///< 内部使用的 MQClient 实例
+    DeclareSetting _declareSetting;   ///< 发布客户端的声明配置
 };
 
+/**
+ * @class SubscribeClient
+ * @brief 消息订阅客户端 —— 组合 MQClient，预设队列和声明配置，简化消费操作
+ */
 class SubscribeClient {
 public:
-    using ptr = std::shared_ptr<SubscribeClient>;
-    SubscribeClient(MQClient::ptr mqClient, const DeclareSetting& declareSetting);
-    void Consume(const MessageCallback& callback); // 从预设的队列消费消息，回调函数处理消息内容
+    using Ptr = std::shared_ptr<SubscribeClient>;
+
+    /**
+     * @brief 构造函数
+     * @param mqClient 已初始化的 MQClient 实例
+     * @param declareSetting 交换机/队列声明配置
+     */
+    SubscribeClient(MQClient::Ptr mqClient, const DeclareSetting& declareSetting);
+
+    /**
+     * @brief 从预设队列消费消息
+     * @param callback 消息处理回调函数
+     */
+    void Consume(const MessageCallback& callback);
+
 private:
-    // 订阅客户端特有的成员函数和数据
-    MQClient::ptr _mqClient; // 内部使用 MQClient 进行消息消费
-    DeclareSetting _declareSetting; // 订阅客户端的声明配置
+    MQClient::Ptr _mqClient;          ///< 内部使用的 MQClient 实例
+    DeclareSetting _declareSetting;   ///< 订阅客户端的声明配置
 };
 
 class MQFactory {

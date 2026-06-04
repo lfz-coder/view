@@ -2,85 +2,41 @@
 
 ## 一、严重问题与待办事项
 
-### 1.1 viewMQ.cc 为空文件 ⚠️ **最高优先级**
+### 1.1 viewMQ.cc ✅ 已实现
 
-头文件 [viewMQ.h](source/viewMQ.h) 已完整声明了 `MQClient`、`PublishClient`、`SubscribeClient`、`MQFactory` 等类，但 [viewMQ.cc](source/viewMQ.cc) 是一个空文件（0 行实现代码）。
+[viewMQ.cc](source/viewMQ.cc) 已完整实现，包括：
+- `MQClient`：基于 AMQP-CPP + libev 的完整客户端（声明、发布、消费）
+- `PublishClient`：组合模式（已去除继承），预设交换机快捷发布
+- `SubscribeClient`：组合模式，预设队列快捷消费
+- `DeclareSetting`：DLX 死信队列支持
 
-- **影响**：任何引用 `viewMQ` 的代码都无法链接
-- **操作**：如需使用消息队列模块，请优先完成实现；如暂不需要，建议在头文件中添加 `#error "viewMQ module not yet implemented"` 防止误用
+### 1.2 PublishClient / SubscribeClient 设计 ✅ 已修正
 
-### 1.2 PublishClient / SubscribeClient 设计问题
+`PublishClient` 已去除对 `MQClient` 的继承，改为纯组合模式。`SubscribeClient` 本身已是组合模式，同时统一了 `ptr` → `Ptr` 命名。
 
-两个类同时使用了**继承** `MQClient` 和**组合**（内部持有 `MQClient::Ptr`），这是一种设计冲突：
+### 1.3 编码规范 ✅ 已修正
 
-```cpp
-class PublishClient : public MQClient {  // 继承
-private:
-    MQClient::Ptr _mqClient;             // 组合
-};
-```
-
-- **影响**：语义不清晰——PublishClient 是否是一个 MQClient？还是仅使用 MQClient？
-- **建议**：二选一。推荐使用组合模式（持有 `MQClient::Ptr`），去掉继承关系，因为发布/订阅客户端不应该 *是* 一个 MQClient
-
-### 1.3 编码规范相关
-
-已完成以下修正：
-- ✅ `UUidType` → `RandomCharType`（修正拼写错误）
-- ✅ 枚举值 `MIX/CHAR/DIGIT` → `kMix/kChar/kDigit`（统一 k 前缀）
-- ✅ `RandomUtil::Uuid()` → `RandomUtil::RandomString()`（修正误导性命名——此函数生成随机字符串，而非 UUID）
-- ✅ `UUID_LENGTH` → `RANDOM_STRING_DEFAULT_LENGTH`
-- ✅ `MQClient::ptr` → `MQClient::Ptr`（统一 Ptr 大写）
-- ✅ `// namespace view` → `// namespace viewRpc`（修正 viewRpc.h 中的错误注释）
-- ✅ `HLS_PLAYLIST_TYPE` 添加了缺失的冒号 `:`
-- ✅ `hls_base_url` 删除硬编码的局域网 IP 默认值
+所有已识别的命名和代码风格问题已修正（`RandomCharType`、`kMix/kChar/kDigit`、`RandomString()`、`Ptr`、namespace 注释、`HLS_PLAYLIST_TYPE`、`hls_base_url` 等）。
 
 ## 二、运行时风险
 
-### 2.1 etcd 无限重试
+### 2.1 etcd 连接重试 ✅ 已修正
 
-`WaitForConnection()` 和 `RegisterService()` 中的重试逻辑没有最大次数限制和指数退避：
+`WaitForConnection()` 已添加最大重试次数限制（30 次），超时后输出错误日志并返回。
 
-```cpp
-// viewEtcd.cc
-void WaitForConnection(etcd::Client& client) {
-    while(!client.head().get().is_ok()) {     // ⚠️ 无限循环
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-}
-```
+### 2.2 RegisterService 递归重新注册 ✅ 已修正
 
-- **风险**：如果 etcd 服务永久不可达，程序将永远阻塞
-- **建议**：添加最大重试次数（如 30 次）和指数退避策略，超时后返回错误
+保活失败时的重新注册已改为：
+- 使用 `shared_ptr<int>` 共享重试计数，限制最大 5 次重试
+- 移除 `std::async`，改为直接同步重试（`sleep_for + RegisterService()`），消除 future 泄漏
 
-### 2.2 RegisterService 递归重新注册
+### 2.3 Transcode() 资源管理 ✅ 已重构
 
-保活失败时的 `std::async` 会异步调用 `RegisterService()` 自身，形成递归链：
-
-```cpp
-// viewEtcd.cc line 97
-self->RegisterService();  // ⚠️ 递归，无限制
-```
-
-- **风险**：
-  - 每次重试都会创建新的 etcd 客户端和租约
-  - `std::async` 返回的 future 被丢弃，析构时可能阻塞
-  - 如果 etcd 持续不可用，会堆积大量异步任务
-- **建议**：添加重试计数、限制最大并发异步重试数
-
-### 2.3 Transcode() 中的手动资源管理
-
-[viewAVTrans.cc](source/viewAVTrans.cc) 的 `HLSTransCoder::Transcode()` 函数约 250 行，手动管理多个 FFmpeg 资源，多处重复清理代码：
-
-```cpp
-// 同一个清理模式出现 5+ 次
-avformat_close_input(&inputContext);
-avformat_free_context(outputContext);
-return false;
-```
-
-- **风险**：新增错误路径时容易遗漏清理，导致资源泄漏
-- **建议**：用 RAII 包装 `AVFormatContext*`、`AVDictionary*`，使用 `std::unique_ptr` + 自定义 deleter
+[viewAVTrans.cc](source/viewAVTrans.cc) 的 `Transcode()` 已重构为统一的 `goto cleanup` 模式：
+- 所有变量在函数开头定义，消除跨变量声明跳转问题
+- 所有错误路径跳转到 `cleanup:` 标签统一清理
+- 使用布尔标记 `header_written` / `avio_opened` 跟踪需要清理的资源状态
+- 函数从 ~250 行缩减到 ~160 行，清理代码从 5+ 处重复变为 1 处
 
 ## 三、线程安全
 
@@ -98,44 +54,23 @@ return false;
 
 ## 四、内存与资源管理
 
-### 4.1 ServerFactory 中的裸 new
+### 4.1 ServerFactory 中的裸 new ✅ 已修正
 
-```cpp
-// brpcServer.cc
-ServerFactory::Create(9000, new CalServiceImpl())
-```
+`brpcServer.cc` 示例已改用 `std::make_shared<CalServiceImpl>()` + `service.get()` 模式，并增加了 Create 失败时的错误处理。
 
-- **风险**：如果 `Create` 失败返回 `nullptr`，`CalServiceImpl` 会泄漏
-- **缓解**：`ServerFactory::Create` 使用 `SERVER_OWNS_SERVICE`，成功后 brpc 接管生命周期；但失败路径确实存在泄漏
-- **建议**：失败时 delete service，或改用智能指针参数
+### 4.2 brpcClient 中的原始指针 ✅ 已修正
 
-### 4.2 brpcClient 中的原始指针
-
-```cpp
-auto cntl = new brpc::Controller;  // 原始 new
-auto req  = new cal::AddReq;       // 原始 new
-auto rsp  = new cal::AddRsp;       // 原始 new
-```
-
-- **风险**：如果 `stub.Add()` 之前抛出异常，三个对象全部泄漏
-- **建议**：用 `std::make_unique` 创建，需要转移所有权时使用 `.release()`
+`brpcClient.cc` 示例已改用 `std::make_unique<>` 管理资源，先取裸指针（`.get()`）传给 brpc，再将 `unique_ptr` 移动到 lambda 中完成生命周期管理。
 
 ## 五、兼容性注意事项
 
-### 5.1 `##__VA_ARGS__` 的 GCC 扩展
+### 5.1 `##__VA_ARGS__` 的 GCC 扩展 ✅ 已改进
 
-[viewLog.h](source/viewLog.h) 中的日志宏使用了 GNU 扩展的 `##__VA_ARGS__`：
-
-```cpp
-#define DEBUG(fmt, ...) g_logger->debug(FMT_PREFIX + fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-```
-
-- **影响**：MSVC 上可能编译失败；使用 `-pedantic` 时警告
-- **建议**：C++20 项目可以改用 `__VA_OPT__(,) __VA_ARGS__`
+[viewLog.h](source/viewLog.h) 中的 `FMT_PREFIX` 宏已用 `#ifndef VIEWLOG_FMT_PREFIX` 守卫保护，避免与其他库冲突。`##__VA_ARGS__` 仍然保留以供 GCC/Clang 用户使用；C++20 项目可自行改用 `__VA_OPT__(,) __VA_ARGS__`。
 
 ### 5.2 FFmpeg C 库的 extern "C"
 
-[viewAVTrans.h](source/viewAVTrans.h) 正确使用了 `extern "C"` 包裹 FFmpeg 头文件。如果新增其他 C 库依赖（如 AMQP-CPP），也需要同样处理。
+[viewAVTrans.h](source/viewAVTrans.h) 正确使用了 `extern "C"` 包裹 FFmpeg 头文件。如果新增其他 C 库依赖，也需要同样处理。
 
 ## 六、构建系统
 
@@ -145,11 +80,9 @@ auto rsp  = new cal::AddRsp;       // 原始 new
 
 - **建议**：引入 CMake，为 `source/` 构建静态库 `libview.a`，example 链接该库即可
 
-### 6.2 .gitignore 不完整
+### 6.2 .gitignore ✅ 已更新
 
-当前 `.gitignore` 不能覆盖：
-- 编译产物（二进制文件、`.o` 文件）散落在各 example 目录下
-- protobuf 生成的 `*.pb.h` / `*.pb.cc` 文件
+已添加对二进制文件、`.o` 文件、`*.pb.h` / `*.pb.cc` 生成文件的忽略规则，移除了不相关的 Flash Builder 条目。
 
 ## 七、设计原则提醒
 

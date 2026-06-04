@@ -35,6 +35,7 @@ extern "C" {
 
 // ==================== C++ 标准库头文件 ====================
 #include <iostream>      ///< 标准输入输出流（用于打印日志和错误信息）
+#include <memory>        ///< 智能指针（std::shared_ptr）
 #include <vector>        ///< 动态数组（用于存储流映射关系、M3U8 头部和 URL 对）
 #include <string>        ///< 字符串类（用于存储文件路径、URL、M3U8 标签等）
 
