@@ -1,5 +1,13 @@
+/**
+ * @file viewUtil.cc
+ * @brief 通用工具模块实现 —— JsonUtil / FileUtil / StrUtil / RandomUtil
+ */
+
 #include "viewUtil.h"
 #include "viewLog.h"
+
+#include <random>
+#include <chrono>
 
 namespace viewUtil {
     // json 相关工具实现
@@ -81,5 +89,65 @@ namespace viewUtil {
         out.push_back(str.substr(start));
         return out.size();
     }
+
+    // *********************************************************************************************** //
+
+    std::string RandomUtil::RandomString(size_t length /* = RANDOM_STRING_DEFAULT_LENGTH */,
+                                          RandomCharType type /* = RandomCharType::kMix */) {
+        // ===================== 步骤1：根据类型选择字符集 =====================
+        // 定义3种静态只读字符集（static 全局唯一，const 不可修改，线程安全）
+        static const char* charSetMix = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        static const char* charSetChar = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        static const char* charSetDigit = "0123456789";
+
+        // 指向最终选中的字符集
+        const char* charSet = nullptr;
+        switch (type) {
+            case RandomCharType::kMix:  charSet = charSetMix;  break;
+            case RandomCharType::kChar: charSet = charSetChar; break;
+            case RandomCharType::kDigit: charSet = charSetDigit; break;
+            default: charSet = charSetMix; break;
+        }
+
+        // 获取字符集总长度
+        size_t charSetSize = strlen(charSet);
+        // 预分配字符串内存，避免多次扩容，提升性能
+        std::string result;
+        result.reserve(length);
+
+        // ===================== 线程安全随机数生成器 =====================
+        // thread_local: 每个线程独立一份，无竞争，绝对安全
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        // 生成 [0, 字符集长度-1] 范围的随机数
+        std::uniform_int_distribution<> dist(0, static_cast<int>(charSetSize) - 1);
+
+        // ===================== 核心：处理长度 <4 的情况 =====================
+        // 固定后缀长度：只有总长度 >=4 时，才使用4位后缀，否则不使用后缀
+        size_t fixedSuffixLength = (length >= 4) ? 4 : 0;
+        // 随机部分长度 = 总长度 - 后缀长度
+        size_t randomPartLength = length - fixedSuffixLength;
+
+        // ===================== 步骤2：生成随机字符部分 =====================
+        for (size_t i = 0; i < randomPartLength; ++i) {
+            // 从字符集中随机取一个字符
+            result += charSet[dist(gen)];
+        }
+
+        // ===================== 步骤3：长度>=4时，追加4位固定编号 =====================
+        if (fixedSuffixLength > 0) {
+            // 用时间戳生成4位唯一后缀
+            uint32_t timestamp = static_cast<uint32_t>(time(nullptr));
+            for (int i = 0; i < 4; ++i) {
+                result += charSet[timestamp % charSetSize];
+                // 右移，保证每一位都不同
+                timestamp >>= 6;
+            }
+        }
+
+        // ===================== 步骤4：返回最终拼接好的字符串 =====================
+        return result;
+    }
+
 
 }

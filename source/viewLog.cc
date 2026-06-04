@@ -1,18 +1,16 @@
-// 引入自定义的日志头文件
+/**
+ * @file viewLog.cc
+ * @brief 日志模块实现 —— 基于 spdlog 的日志器初始化
+ */
+
 #include "viewLog.h"
-// 引入标准输入输出流，用于打印初始化失败信息
 #include <iostream>
 
-// 引入spdlog异步日志核心支持
 #include <spdlog/async.h>
-// 引入spdlog控制台彩色输出sink
 #include <spdlog/sinks/stdout_color_sinks.h>
-// 引入spdlog基础文件输出sink
 #include <spdlog/sinks/basic_file_sink.h>
-// 引入spdlog旋转文件输出sink（按大小切割）
 #include <spdlog/sinks/rotating_file_sink.h>
 
-// 自定义命名空间 viewLog，避免全局命名冲突
 namespace viewLog {
     // 定义全局日志器智能指针
     // 整个项目都可以通过 view::g_logger 使用日志功能

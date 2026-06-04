@@ -1,3 +1,8 @@
+/**
+ * @file viewAVTrans.cc
+ * @brief HLS 转码模块实现 —— M3U8Info 解析/生成 / HLSTransCoder
+ */
+
 #include "viewAVTrans.h"
 #include "viewUtil.h"
 #include "viewLog.h"

@@ -1,3 +1,8 @@
+/**
+ * @file viewRpc.cc
+ * @brief RPC 模块实现 —— Channels / RpcManager / ClosureFactory / ServerFactory
+ */
+
 #include "viewRpc.h"
 #include "viewLog.h"
 

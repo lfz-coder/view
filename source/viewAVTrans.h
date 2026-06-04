@@ -61,7 +61,7 @@ const std::string HLS_EXTM3U = "#EXTM3U";                       ///< M3U8 文件
 const std::string HLS_VERSION = "#EXT-X-VERSION:";              ///< HLS 协议版本号
 const std::string HLS_TARGETDURATION = "#EXT-X-TARGETDURATION:"; ///< 目标分片时长（秒）
 const std::string HLS_MEDIA_SEQUENCE = "#EXT-X-MEDIA-SEQUENCE:"; ///< 第一个分片的序列号
-const std::string HLS_PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE";   ///< 播放列表类型（VOD/EVENT）
+const std::string HLS_PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE:"; ///< 播放列表类型（VOD/EVENT）
 const std::string HLS_INDEPENDENT_SEGMENTS = "#EXT-X-INDEPENDENT-SEGMENTS"; ///< 分片可独立解码标识
 const std::string HLS_EXTINF = "#EXTINF:";                      ///< 分片时长信息
 const std::string HLS_ENDLIST = "#EXT-X-ENDLIST";               ///< 播放列表结束标记
@@ -91,6 +91,7 @@ const std::string HLS_ENDLIST = "#EXT-X-ENDLIST";               ///< 播放列�
  */
 class M3U8Info {
 public:
+    using Ptr = std::shared_ptr<M3U8Info>; ///< M3U8Info 类的智能指针类型别名
     /**
      * @brief URL 键值对类型别名
      * 
@@ -219,7 +220,7 @@ struct HLSConfig {
      * 
      * @note 如果为空字符串，则 M3U8 中使用相对路径。
      */
-    std::string hls_base_url = "http://192.168.1.100:9000/video/";
+    std::string hls_base_url; ///< TS 分片文件的 URL 基础前缀（默认为空，使用相对路径）
 };
 
 /**
@@ -271,6 +272,7 @@ class HLSTransCoder {
     };
 
 public:
+    using Ptr = std::shared_ptr<HLSTransCoder>; ///< HLSTransCoder 类的智能指针类型别名
     /**
      * @brief 构造函数
      * @param config HLS 转换配置参数
