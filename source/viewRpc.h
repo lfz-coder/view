@@ -32,15 +32,31 @@ using ChannelPtr = std::shared_ptr<brpc::Channel>;
  */
 class Channels {
 public:
-    using Ptr = std::shared_ptr<Channels>;
+    using Ptr = std::shared_ptr<Channels>; ///< Channels 智能指针类型别名
+
+    /**
+     * @brief 构造函数
+     * @param service_name 服务名称
+     */
     Channels(const std::string& service_name);
     ~Channels() = default;
 
-    // 新增节点
+    /**
+     * @brief 新增一个服务节点
+     * @param addr 节点地址（格式：IP:Port），重复添加会被忽略
+     */
     void Insert(const std::string& addr);
-    // 删除节点
+
+    /**
+     * @brief 删除一个服务节点
+     * @param addr 节点地址，不存在时输出警告日志
+     */
     void Remove(const std::string& addr);
-    // 获取节点
+
+    /**
+     * @brief 轮询选择一个服务节点
+     * @return 选中的 Channel 智能指针，无可用节点时返回 nullptr
+     */
     ChannelPtr Select();
 
 private:
@@ -63,17 +79,39 @@ public:
     RpcManager() = default;
     ~RpcManager() = default;
 
-    // 关心服务: 是否对该服务进行管理
+    /**
+     * @brief 声明关心的服务——为该服务创建 Channels 连接池
+     * @param service_name 服务名称，重复声明会被忽略
+     */
     void CareService(const std::string& service_name);
-    // 新增节点
+
+    /**
+     * @brief 为指定服务新增节点
+     * @param service_name 服务名称（需先调用 CareService）
+     * @param addr         节点地址
+     */
     void AddNode(const std::string& service_name, const std::string& addr);
-    // 删除节点
+
+    /**
+     * @brief 为指定服务删除节点
+     * @param service_name 服务名称
+     * @param addr         节点地址
+     */
     void RemoveNode(const std::string& service_name, const std::string& addr);
-    // 获取节点
+
+    /**
+     * @brief 从指定服务中获取一个可用节点（轮询）
+     * @param service_name 服务名称
+     * @return 选中的 Channel，服务不存在或无可用节点时返回 nullptr
+     */
     ChannelPtr GetNode(const std::string& service_name);
 
 protected:
-    // 获取服务
+    /**
+     * @brief 获取指定服务的 Channels 连接池
+     * @param service_name 服务名称
+     * @return Channels 智能指针，不存在时返回 nullptr
+     */
     Channels::Ptr GetService(const std::string& service_name);
 
 private:
@@ -90,15 +128,26 @@ private:
  */
 class ClosureFactory {
 public:
-    using callback_t = std::function<void()>;
+    using callback_t = std::function<void()>; ///< 回调函数类型别名
+
+    /**
+     * @brief 创建 brpc Closure 对象——将 std::function 回调包装为 protobuf Closure
+     * @param callback 用户回调函数（支持 lambda 表达式和仿函数）
+     * @return brpc Closure 指针，由 brpc 框架负责释放
+     */
     static google::protobuf::Closure* Create(callback_t&& callback);
+
 private:
-    // 支持仿函数和 lambda 表达式
+    /// 内部包装对象，持有用户回调
     struct Object {
-        using Ptr = std::shared_ptr<Object>;
-        callback_t callback;
+        using Ptr = std::shared_ptr<Object>; ///< Object 智能指针类型别名
+        callback_t callback;                 ///< 用户回调函数
     };
 
+    /**
+     * @brief 异步回调入口——brpc 回调时调用
+     * @param obj 持有用户回调的 Object 智能指针
+     */
     static void AsyncCallBack(const Object::Ptr obj);
 
 };
@@ -112,7 +161,15 @@ private:
  */
 class ServerFactory {
 public:
-// 默认 service 是堆上 new 出来的, 将管理权交给 RPC 服务器进行管理
+    /**
+     * @brief 创建并启动 brpc 服务器
+     * @param port    监听端口
+     * @param service protobuf Service 对象指针（堆上创建，生命周期由 brpc 接管）
+     * @return 成功返回 Server 智能指针，失败返回 nullptr
+     *
+     * @note service 由 brpc 框架接管生命周期（SERVER_OWNS_SERVICE），调用者无需手动释放。
+     * @note 服务器空闲超时设为 -1（不主动断开空闲连接）。
+     */
     static std::shared_ptr<brpc::Server> Create(int port, google::protobuf::Service* service);
 };
 

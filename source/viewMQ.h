@@ -1,12 +1,19 @@
-#pragma once
-
 /**
  * @file viewMQ.h
- * @brief 消息队列声明配置模块
+ * @brief 消息队列模块 —— 基于 AMQP-CPP + libev 的 RabbitMQ 客户端封装
+ * @author Your Name
+ * @date 2026
  *
- * 基于 AMQP-CPP 和 libev 事件循环的 RabbitMQ 客户端封装。
- * 提供交换机、队列、死信队列（DLX）的声明配置结构。
+ * 提供交换机/队列声明（含死信队列 DLX 支持）、消息发布、消息消费功能。
+ * 包含以下核心类型：
+ * - DeclareSetting：AMQP 交换机/队列声明配置
+ * - MQClient：      核心客户端（libev 事件循环）
+ * - PublishClient：  发布客户端（组合模式）
+ * - SubscribeClient：订阅客户端（组合模式）
+ * - MQFactory：      模板工厂类
  */
+
+#pragma once
 
 #include <amqpcpp.h>
 #include <ev.h>
@@ -70,17 +77,67 @@ struct DeclareSetting {
 };
 
 extern AMQP::ExchangeType Exchange_type(const std::string& type);
-using MessageCallback = std::function<void(const char*, size_t)>; // 消息回调函数类型定义
+/// 消息回调函数类型：参数为消息体指针和长度
+using MessageCallback = std::function<void(const char*, size_t)>;
+
+/**
+ * @class MQClient
+ * @brief AMQP/RabbitMQ 核心客户端类
+ *
+ * 基于 AMQP-CPP 和 libev 事件循环的 RabbitMQ 客户端封装。
+ * 内部启动独立线程运行 libev 事件循环，支持声明、发布、消费操作。
+ *
+ * 使用流程：
+ * 1. 构造 MQClient(url) → 初始化连接和事件循环
+ * 2. Declare(setting) → 声明交换机/队列/绑定
+ * 3. Start() → 启动事件循环线程
+ * 4. Publish() / Consume() → 收发消息
+ * 5. 析构时自动停止事件循环并清理资源
+ */
 class MQClient {
 public:
-    using Ptr = std::shared_ptr<MQClient>;
-    MQClient(const std::string& url); // 构造成员，启动异步事件循环
-    ~MQClient(); // 发送异步请求，结束事件循环，等待异步线程结束
-    // 声明交换机、队列、绑定关系，支持死信队列配置
-    void Declare(const DeclareSetting& setting); 
-    void Publish(const std::string& exchange, const std::string& routingKey, const std::string& message); // 发布消息到指定交换机和路由键
-    void Consume(const std::string& queue, const MessageCallback& callback); // 从指定队列消费消息，回调函数处理消息内容
+    using Ptr = std::shared_ptr<MQClient>; ///< MQClient 智能指针类型别名
+
+    /**
+     * @brief 构造 MQClient 并初始化 AMQP 连接
+     * @param url AMQP 连接地址（格式：amqp://user:pass@host:port/vhost）
+     */
+    MQClient(const std::string& url);
+
+    /**
+     * @brief 析构函数——清理 AMQP 资源，停止事件循环，等待线程退出
+     */
+    ~MQClient();
+
+    /**
+     * @brief 声明交换机、队列及绑定关系，支持死信队列（DLX）配置
+     * @param setting 声明配置参数（包含交换机名、类型、队列名、绑定键、TTL 等）
+     */
+    void Declare(const DeclareSetting& setting);
+
+    /**
+     * @brief 发布消息到指定交换机和路由键
+     * @param exchange   目标交换机名称
+     * @param routingKey 路由键
+     * @param message    消息体
+     */
+    void Publish(const std::string& exchange, const std::string& routingKey, const std::string& message);
+
+    /**
+     * @brief 从指定队列消费消息
+     * @param queue    队列名称
+     * @param callback 消息处理回调函数
+     */
+    void Consume(const std::string& queue, const MessageCallback& callback);
+
+    /**
+     * @brief 启动 libev 事件循环（在独立线程中运行）
+     */
     void Start();
+
+    /**
+     * @brief 等待事件循环线程结束（阻塞调用）
+     */
     void Wait();
 private:
     std::mutex _mtx;
@@ -145,8 +202,26 @@ private:
     DeclareSetting _declareSetting;   ///< 订阅客户端的声明配置
 };
 
+/**
+ * @class MQFactory
+ * @brief MQ 客户端模板工厂类
+ *
+ * 提供泛型工厂方法 Create<T>()，使用 std::make_shared + 完美转发构造派生客户端类。
+ *
+ * @example
+ * @code
+ * auto pub = MQFactory::Create<PublishClient>(mqClient, setting);
+ * @endcode
+ */
 class MQFactory {
 public:
+    /**
+     * @brief 模板工厂方法——创建指定类型的客户端实例
+     * @tparam T    目标客户端类型（如 PublishClient / SubscribeClient）
+     * @tparam Args 构造函数参数类型
+     * @param args  转发给 T 构造函数的参数
+     * @return std::shared_ptr<T> 创建的实例
+     */
     template<typename T, typename... Args>
     static std::shared_ptr<T> Create(Args&&... args) {
         return std::make_shared<T>(std::forward<Args>(args)...);

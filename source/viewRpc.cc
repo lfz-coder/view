@@ -8,10 +8,21 @@
 
 namespace viewRpc {
 
-    // *********************************************************************************************** //
+    // ==================== Channels 实现 ====================
+
+    /**
+     * @brief 构造函数——初始化服务名称和轮询索引
+     * @param service_name 服务名称
+     */
     Channels::Channels(const std::string& service_name) : _service_name(service_name), _index(0) {}
 
-    // 新增节点
+    /**
+     * @brief 新增一个服务节点到连接池
+     * @param addr 节点地址（IP:Port），重复添加会被忽略
+     *
+     * 创建 brpc::Channel 并初始化（baidu_std 协议，1 秒超时，3 次重试），
+     * 同时维护 _channels 哈希表和 _channel_vec 向量以支持轮询选择。
+     */
     void Channels::Insert(const std::string& addr) {
         std::unique_lock<std::mutex> lock(_mtx);
         if(_channels.find(addr) != _channels.end()) {
@@ -30,7 +41,10 @@ namespace viewRpc {
         _channel_vec.push_back(channel);
     }
 
-    // 删除节点
+    /**
+     * @brief 从连接池中删除指定节点
+     * @param addr 节点地址，不存在时输出警告日志
+     */
     void Channels::Remove(const std::string& addr) {
         std::unique_lock<std::mutex> lock(_mtx);
         auto it = _channels.find(addr);
@@ -43,7 +57,10 @@ namespace viewRpc {
         _channel_vec.erase(std::remove(_channel_vec.begin(), _channel_vec.end(), willDelChannel), _channel_vec.end());
     }
 
-    // 获取节点
+    /**
+     * @brief 轮询选择一个可用节点（Round-Robin 策略）
+     * @return 选中的 Channel 智能指针，无可用节点时返回 nullptr
+     */
     ChannelPtr Channels::Select() {
         std::unique_lock<std::mutex> lock(_mtx);
         if(_channel_vec.empty()) {
@@ -54,8 +71,13 @@ namespace viewRpc {
         return channel;
     }
 
-    // *********************************************************************************************** //
+    // ==================== RpcManager 实现 ====================
 
+    /**
+     * @brief 获取指定服务的 Channels 连接池（内部方法）
+     * @param service_name 服务名称
+     * @return Channels 智能指针，不存在时返回 nullptr
+     */
     Channels::Ptr RpcManager::GetService(const std::string& service_name) {
         std::unique_lock<std::mutex> lock(_mtx);
         auto it = _services.find(service_name);
@@ -65,7 +87,10 @@ namespace viewRpc {
         return it->second;
     }
 
-    // 关心服务: 是否对该服务进行管理
+    /**
+     * @brief 声明关心的服务——为该服务创建 Channels 连接池
+     * @param service_name 服务名称，重复声明会被忽略
+     */
     void RpcManager::CareService(const std::string& service_name) {
         std::unique_lock<std::mutex> lock(_mtx);
         if(_services.find(service_name) != _services.end()) {
@@ -73,7 +98,11 @@ namespace viewRpc {
         }
         _services.insert(std::make_pair(service_name, std::make_shared<Channels>(service_name)));
     }
-    // 新增节点
+    /**
+     * @brief 为指定服务新增节点
+     * @param service_name 服务名称（需先调用 CareService）
+     * @param addr         节点地址
+     */
     void RpcManager::AddNode(const std::string& service_name, const std::string& addr) {
         Channels::Ptr channels = GetService(service_name);
         if(channels == nullptr) {
@@ -83,7 +112,11 @@ namespace viewRpc {
         channels->Insert(addr);
     }
 
-    // 删除节点
+    /**
+     * @brief 为指定服务删除节点
+     * @param service_name 服务名称
+     * @param addr         节点地址
+     */
     void RpcManager::RemoveNode(const std::string& service_name, const std::string& addr) {
         Channels::Ptr channels = GetService(service_name);
         if(channels == nullptr) {
@@ -93,7 +126,11 @@ namespace viewRpc {
         channels->Remove(addr);
     }
 
-    // 获取节点
+    /**
+     * @brief 从指定服务中获取一个可用节点（轮询）
+     * @param service_name 服务名称
+     * @return 选中的 Channel，服务不存在或无可用节点时返回 nullptr
+     */
     ChannelPtr RpcManager::GetNode(const std::string& service_name) {
         Channels::Ptr channels = GetService(service_name);
         if(channels == nullptr) {
@@ -103,20 +140,37 @@ namespace viewRpc {
         return channels->Select();
     }
 
-    // *********************************************************************************************** //
+    // ==================== ClosureFactory 实现 ====================
 
+    /**
+     * @brief 创建 brpc Closure 对象——将 std::function/lambda 包装为 protobuf Closure
+     * @param callback 用户回调函数（支持 lambda 和仿函数）
+     * @return brpc Closure 指针，由 brpc 框架负责释放
+     */
     google::protobuf::Closure* ClosureFactory::Create(callback_t&& callback) {
         auto obj = std::make_shared<Object>();
         obj->callback = std::move(callback);
         return brpc::NewCallback(&ClosureFactory::AsyncCallBack, obj);
     }
 
+    /**
+     * @brief brpc 异步回调入口——转发到用户 callback
+     * @param obj 持有用户回调的 Object 智能指针
+     */
     void ClosureFactory::AsyncCallBack(const Object::Ptr obj) {
         obj->callback();
     }
 
-    // *********************************************************************************************** //
-    // 作用: 创建 RPC 服务器
+    // ==================== ServerFactory 实现 ====================
+
+    /**
+     * @brief 创建并启动 brpc 服务器
+     * @param port    监听端口
+     * @param service protobuf Service 对象指针（生命周期由 brpc 接管，SERVER_OWNS_SERVICE）
+     * @return 成功返回 Server 智能指针，失败返回 nullptr
+     *
+     * @note 服务器空闲超时设为 -1（不主动断开空闲连接）。
+     */
     std::shared_ptr<brpc::Server> ServerFactory::Create(int port, google::protobuf::Service* service) {
         auto server = std::make_shared<brpc::Server>();
         if (server->AddService(service, brpc::SERVER_OWNS_SERVICE) != 0) {

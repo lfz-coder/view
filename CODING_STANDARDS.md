@@ -169,20 +169,36 @@ struct HLSConfig {
 
 ## 5. 模块设计规范
 
-### 5.1 单一职责
+### 5.1 参数传递规范
+
+- **输入型参数**：使用常量引用（`const T&`）
+  ```cpp
+  static bool Read(const std::string& path, std::string* content);  // ✓ path 为输入，用 const&
+  ```
+- **输出型参数**：使用指针（`T*`），调用处以 `&` 取地址传入
+  ```cpp
+  std::string content;
+  FileUtil::Read("/path/to/file", &content);  // ✓ 输出参数传指针
+  ```
+- **返回值**：
+  - 操作类函数（读、写、注册等）：返回 `bool` 指示成功/失败
+  - 获取值类函数（序列化、反序列化、上传等）：返回 `std::optional<T>`
+- 输出型参数必须在函数内部进行空指针检查
+
+### 5.2 模块单一职责
 - 每个模块（`viewXXX`）只封装一个外部依赖或一个功能领域
 - 例如：`viewAVTrans` 只负责 FFmpeg/HLS，`viewRpc` 只负责 brpc
 
-### 5.2 头文件依赖最小化
+### 5.3 头文件依赖最小化
 - 能用前向声明的不用 `#include`
 - 头文件中只包含必要的头文件，实现细节放到 `.cc` 中
 
-### 5.3 错误处理
+### 5.4 错误处理
 - 函数返回值指示成功/失败：`bool` 用于操作类，`std::optional` 用于获取值类
 - 错误信息通过 `viewLog::ERROR()` 输出
 - 资源清理使用 RAII 模式
 
-### 5.4 RAII 原则
+### 5.5 RAII 原则
 - 资源（文件、连接、锁）必须在构造函数中获取、析构函数中释放
 - 示例：
   ```cpp
@@ -192,7 +208,7 @@ struct HLSConfig {
   };
   ```
 
-### 5.5 智能指针
+### 5.6 智能指针
 - 优先使用 `std::shared_ptr` 和 `std::unique_ptr`
 - 禁止裸 `new` / `delete`（除非与 C API 交互且在 RAII 包装内）
 

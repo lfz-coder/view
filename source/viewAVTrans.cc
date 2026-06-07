@@ -8,18 +8,30 @@
 #include "viewLog.h"
 
 namespace viewAVTrans {
+
+    /**
+     * @brief 构造函数——保存 M3U8 文件路径
+     * @param fileName M3U8 文件的路径（本地路径或 URL）
+     */
     M3U8Info::M3U8Info(const std::string& fileName) : _fileName(fileName) {}
 
+    /**
+     * @brief 解析 M3U8 文件内容
+     * @return true 解析成功，false 读取文件失败
+     *
+     * 将文件内容按行拆分，分离为头部标签行和分片 URL 键值对。
+     * 遇到 #EXT-X-ENDLIST 标签时停止解析。
+     */
     bool M3U8Info::Parse() {
         std::string content;
-        bool ret = viewUtil::FileUtil::Read(_fileName, content);
+        bool ret = viewUtil::FileUtil::Read(_fileName, &content);
         if(!ret) {
             viewLog::ERROR("M3U8Info:Parse read file failed: {}", _fileName);
             return false; // 读取文件失败
         }
         // 解析内容
         std::vector<std::string> lines;
-        viewUtil::StrUtil::Split(content, "\n", lines);
+        viewUtil::StrUtil::Split(content, "\n", &lines);
         for(size_t i = 0; i < lines.size(); i++) {
             if(lines[i].empty()) continue;
             
@@ -45,6 +57,12 @@ namespace viewAVTrans {
         return true;
     }
 
+    /**
+     * @brief 将内存中的 M3U8 数据写入文件
+     * @return true 写入成功，false 写入失败
+     *
+     * 将 _headers 和 _urlPairs 拼接为完整的 M3U8 内容后覆盖写入原文件。
+     */
     bool M3U8Info::Write() {
         std::stringstream ss;
         for(const auto& header : _headers) {
@@ -61,18 +79,45 @@ namespace viewAVTrans {
         return true;
     }
 
+    /**
+     * @brief 获取 M3U8 头部信息列表的可修改引用
+     * @return 头部信息行的引用
+     */
     std::vector<std::string>& M3U8Info::GetHeaders() {
         return _headers;
     }
 
+    /**
+     * @brief 获取分片 URL 键值对列表的可修改引用
+     * @return URL 键值对列表的引用（first=时长, second=URL）
+     */
     std::vector<M3U8Info::StrPair>& M3U8Info::GetUrlPairs() {
         return _urlPairs;
     }
 
-    // *********************************************************************************************** //
+    // ==================== HLSTransCoder 实现 ====================
 
+    /**
+     * @brief 构造函数——保存 HLS 转换配置
+     * @param config HLS 转换配置参数
+     */
     HLSTransCoder::HLSTransCoder(const HLSConfig& config) : _config(config) {}
 
+    /**
+     * @brief 执行 HLS 视频转码（remux 模式，不重新编码）
+     * @param inputFile  输入视频文件路径
+     * @param outputFile 输出 M3U8 文件路径
+     * @return true 转码成功，false 转码失败
+     *
+     * 转换流程：
+     * 1. 打开输入文件并解析流信息
+     * 2. 创建 HLS 输出上下文
+     * 3. 复制输入流的编码参数到输出流
+     * 4. 配置 HLS 分片参数（时长、类型、base_url）
+     * 5. 写入文件头 → 循环读写数据包 → 写入文件尾
+     *
+     * 使用 goto cleanup 模式统一处理资源释放。
+     */
     bool HLSTransCoder::Transcode(const std::string& inputFile, const std::string& outputFile) {
         // 所有变量在函数开头定义，确保 goto cleanup 不会跳过初始化
         int ret = 0;
@@ -236,6 +281,14 @@ namespace viewAVTrans {
         return (ret >= 0);
     }
 
+    /**
+     * @brief 将 FFmpeg 错误码转换为可读字符串
+     * @param errnum FFmpeg 函数返回的错误码（负数）
+     * @return 错误描述的 C 字符串指针
+     *
+     * @note 使用 thread_local 静态缓冲区，线程安全。
+     *       返回的指针在同一个线程的下一次调用时会被覆盖。
+     */
     const char *HLSTransCoder::AvError(int errnum) {
         thread_local char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(errnum, errbuf, sizeof(errbuf));

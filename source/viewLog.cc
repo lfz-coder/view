@@ -12,8 +12,13 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 
 namespace viewLog {
-    // 定义全局日志器智能指针
-    // 整个项目都可以通过 view::g_logger 使用日志功能
+
+    /**
+     * @brief 全局日志器实例
+     *
+     * 由 init_logger() 初始化，整个项目通过 viewLog::g_logger 使用日志功能。
+     * 也可通过 viewLog 命名空间下的 DEBUG/INFO/WARN/ERROR 宏间接使用。
+     */
     std::shared_ptr<spdlog::logger> g_logger;
 
     /**

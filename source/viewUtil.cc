@@ -10,8 +10,14 @@
 #include <chrono>
 
 namespace viewUtil {
-    // json 相关工具实现
-    // json 对象序列化为字符串
+
+    // ==================== JsonUtil 实现 ====================
+
+    /**
+     * @brief 将 JSON 对象序列化为紧凑字符串（无缩进）
+     * @param json 待序列化的 JSON 对象
+     * @return 成功返回 JSON 字符串，失败返回 std::nullopt
+     */
     std::optional<std::string> JsonUtil::serialize(const Json::Value& json) {
         Json::StreamWriterBuilder swb; // 创建 StreamWriterBuilder 对象
         // 个性化设置
@@ -25,7 +31,12 @@ namespace viewUtil {
         }
         return oss.str(); // 返回字符串流中的内容
     }
-    // json 字符串反序列化为 json 对象
+
+    /**
+     * @brief 将 JSON 字符串反序列化为 JSON 对象
+     * @param input 待解析的 JSON 字符串
+     * @return 成功返回 JSON 对象，失败返回 std::nullopt
+     */
     std::optional<Json::Value> JsonUtil::deserialize(const std::string& input) {
         Json::CharReaderBuilder crb; // 创建 CharReaderBuilder 对象
         std::unique_ptr<Json::CharReader> reader(crb.newCharReader()); // 创建 CharReader 对象
@@ -38,9 +49,19 @@ namespace viewUtil {
         return val;
     }
 
-    // *********************************************************************************************** //
+    // ==================== FileUtil 实现 ====================
 
-    bool FileUtil::Read(const std::string& path, std::string& content) {
+    /**
+     * @brief 以二进制模式读取文件全部内容
+     * @param path    文件路径
+     * @param content [出参] 读取到的文件内容（指针，不可为空），读取失败时被清空
+     * @return true 读取成功（含空文件），false 读取失败
+     */
+    bool FileUtil::Read(const std::string& path, std::string* content) {
+        if (content == nullptr) {
+            viewLog::ERROR("FileUtil::Read content 参数为 nullptr");
+            return false;
+        }
         std::ifstream ifs; // 创建输入文件流对象
         ifs.open(path, std::ios::in | std::ios::binary);
         if(!ifs.is_open()) {
@@ -51,20 +72,26 @@ namespace viewUtil {
         size_t fileSize = ifs.tellg(); // 获取文件大小
         if(fileSize == 0) {
             viewLog::WARN("FileUtil:Read fileSize is 0: {}", path);
-            content.clear(); // 如果文件为空，清空内容并返回 true
+            content->clear(); // 如果文件为空，清空内容并返回 true
             return true;
         }
         ifs.seekg(0, std::ios::beg); // 将文件指针移动回文件开头
-        content.resize(fileSize); // 调整字符串大小以容纳文件内容
-        if (!ifs.read(&content[0], fileSize)) {
+        content->resize(fileSize); // 调整字符串大小以容纳文件内容
+        if (!ifs.read(&(*content)[0], fileSize)) {
             viewLog::ERROR("FileUtil::Read read failed: {}", path);
-            content.clear();
+            content->clear();
             return false;
         }
 
         return true;
     }
 
+    /**
+     * @brief 以二进制模式将内容写入文件（覆盖写入）
+     * @param path    文件路径
+     * @param content 待写入的内容
+     * @return true 写入成功，false 写入失败
+     */
     bool FileUtil::Write(const std::string& path, const std::string& content) {
         std::ofstream ofs; // 创建输出文件流对象
         ofs.open(path, std::ios::out | std::ios::binary | std::ios::trunc); // 以二进制模式打开文件，覆盖原有内容
@@ -79,22 +106,43 @@ namespace viewUtil {
     }
 
 
-    // *********************************************************************************************** //
+    // ==================== StrUtil 实现 ====================
 
-    size_t StrUtil::Split(const std::string& str, const std::string& delimiter, std::vector<std::string>& out) {
-        out.clear();
+    /**
+     * @brief 按分隔符拆分字符串
+     * @param str       待拆分的原始字符串
+     * @param delimiter 分隔符字符串
+     * @param out       [出参] 拆分后的子串列表（指针，不可为空；先清空再填充）
+     * @return 拆分出的子串数量
+     */
+    size_t StrUtil::Split(const std::string& str, const std::string& delimiter, std::vector<std::string>* out) {
+        if (out == nullptr) {
+            viewLog::ERROR("StrUtil::Split out 参数为 nullptr");
+            return 0;
+        }
+        out->clear();
         size_t start = 0;
         size_t end = 0;
         while ((end = str.find(delimiter, start)) != std::string::npos) {
-            out.push_back(str.substr(start, end - start));
+            out->push_back(str.substr(start, end - start));
             start = end + delimiter.length();
         }
-        out.push_back(str.substr(start));
-        return out.size();
+        out->push_back(str.substr(start));
+        return out->size();
     }
 
-    // *********************************************************************************************** //
+    // ==================== RandomUtil 实现 ====================
 
+    /**
+     * @brief 生成指定长度和字符类型的随机字符串
+     * @param length 目标字符串长度，默认 16
+     * @param type   字符类型，默认 kMix（字母+数字混合）
+     * @return 生成的随机字符串
+     *
+     * @note 当 length >= 4 时，末尾 4 位为基于时间戳生成的固定编号，
+     *       剩余前缀为完全随机字符，用于降低碰撞概率。
+     * @note 使用 thread_local 随机数生成器，保证线程安全。
+     */
     std::string RandomUtil::RandomString(size_t length /* = RANDOM_STRING_DEFAULT_LENGTH */,
                                           RandomCharType type /* = RandomCharType::kMix */) {
         // ===================== 步骤1：根据类型选择字符集 =====================
