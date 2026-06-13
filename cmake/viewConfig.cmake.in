@@ -1,0 +1,27 @@
+# viewConfig.cmake.in
+# 安装后供 find_package(view) 使用的包配置文件模板
+#
+# 由 CMake 的 configure_package_config_file() 处理 @PACKAGE_INIT@ 占位符，
+# 生成最终的 viewConfig.cmake。
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/viewTargets.cmake")
+
+# ---- 查找 view 所依赖的外部库 ----
+include(CMakeFindDependencyMacro)
+
+# spdlog — 提供 CMake 包
+find_dependency(spdlog)
+
+# jsoncpp
+if(NOT jsoncpp_FOUND)
+    find_dependency(jsoncpp)
+endif()
+
+# brpc
+if(NOT brpc_FOUND)
+    find_dependency(brpc)
+endif()
+
+check_required_components(view)

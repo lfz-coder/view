@@ -1,22 +1,21 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+# ===================== CMake 专属生成产物 =====================
+# CMake 构建目录（最常用：build 文件夹，绝大多数人编译都建build）
+build/
+_build/
+cmake-build-*/
 
-# IDE
-.settings/
+# CMake 缓存与配置文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
 
-# Compiled binary executables (example directories)
-example/*/brpcClient
-example/*/brpcServer
-example/*/hlsTest
-example/*/jsonTest
-example/*/logTest
-example/*/discovery
-example/*/registry
-example/*/*.o
+# 生成的 Makefile / Ninja 构建脚本
+Makefile
+*.ninja
+*.ninja_deps
+*.ninja_log
 
-# Protobuf generated files
-*.pb.h
-*.pb.cc
+# 临时日志、依赖文件
+*.log
+*.cmake
